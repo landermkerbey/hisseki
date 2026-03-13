@@ -12,8 +12,13 @@
   "type": "commonjs",
   "devDependencies": {
     "@types/jest": "^30.0.0",
+    "@types/pdfkit": "^0.17.5",
     "jest": "^30.3.0",
+    "jest-extended": "^7.0.0",
     "ts-jest": "^29.4.6",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "pdfkit": "^0.17.2"
   }
 }
