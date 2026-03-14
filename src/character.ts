@@ -9,14 +9,18 @@ export function drawCharacter(
   opacity: number
 ): void {
   const fontSize = cellSize * 0.8;
-  const verticalOffset = (cellSize - fontSize) / 2;
+
+  doc.font(font);
+  doc.fontSize(fontSize);
+
+  const lineHeight = doc.currentLineHeight(true);
+  const verticalOffset = (cellSize - lineHeight) / 2;
 
   doc
-    .font(font)
-    .fontSize(fontSize)
     .opacity(opacity)
     .text(character, cell.x, cell.y + verticalOffset, {
       width: cellSize,
       align: "center",
+      lineBreak: false,
     });
 }

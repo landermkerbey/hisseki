@@ -5,6 +5,7 @@ describe("drawCharacter", () => {
     const mockDoc = {
       font: jest.fn().mockReturnThis(),
       fontSize: jest.fn().mockReturnThis(),
+      currentLineHeight: jest.fn().mockReturnValue(50),
       opacity: jest.fn().mockReturnThis(),
       text: jest.fn().mockReturnThis(),
     };
@@ -14,9 +15,10 @@ describe("drawCharacter", () => {
     expect(mockDoc.font).toHaveBeenCalledWith("NotoSansCJK");
     expect(mockDoc.fontSize).toHaveBeenCalledWith(72 * 0.8);
     expect(mockDoc.opacity).toHaveBeenCalledWith(0.5);
-    expect(mockDoc.text).toHaveBeenCalledWith("永", 0, expect.any(Number), {
+    expect(mockDoc.text).toHaveBeenCalledWith("永", 0, 11, {
       width: 72,
       align: "center",
+      lineBreak: false,
     });
   });
 });

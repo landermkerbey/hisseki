@@ -1,0 +1,21 @@
+{
+  "pageWidth": 612,
+  "pageHeight": 792,
+  "margin": 72,
+  "cellSize": 72,
+  "mode": "grouped",
+  "font": "NotoSansCJK",
+  "fontPath": "/home/lander/sync_data/downloads/ShipporiMincho-Regular.ttf",
+  "characters": [
+    {
+      "character": "永",
+      "cellsPerCharacter": 20,
+      "opacity": { "type": "fade", "start": 0.8, "end": 0.2 }
+    },
+    {
+      "character": "水",
+      "cellsPerCharacter": 20,
+      "opacity": { "type": "modelThenFixed", "modelOpacity": 0.9, "practiceOpacity": 0.3 }
+    }
+  ]
+}

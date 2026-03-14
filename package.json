@@ -2,16 +2,14 @@
   "name": "hisseki",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "main": "dist/index.js",
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
     "@types/jest": "^30.0.0",
+    "@types/minimist": "^1.2.5",
     "@types/pdfkit": "^0.17.5",
     "jest": "^30.3.0",
     "jest-extended": "^7.0.0",
@@ -19,6 +17,14 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "minimist": "^1.2.8",
     "pdfkit": "^0.17.2"
+  },
+  "bin": {
+      "hisseki": "dist/index.js"
+  },
+  "scripts": {
+      "build": "tsc",
+      "test": "jest"
   }
 }
