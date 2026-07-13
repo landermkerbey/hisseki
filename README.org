@@ -1,0 +1,402 @@
+#+TITLE: hisseki
+#+SUBTITLE: A configurable handwriting-practice PDF generator
+#+OPTIONS: toc:2
+
+Hisseki (筆跡, "handwriting" / "brushstroke traces") is a small CLI that
+turns a JSON description of a practice drill into a printable PDF of
+guide-lined grid cells (genkouyoushi-style: outer border, midlines, and
+corner-to-corner diagonals) with characters drawn into them at
+configurable opacity. It exists to generate tracing/fading worksheets
+for learning to write kanji, kana, or any other glyph-based script by
+hand, but it works for any single string you want repeated across a
+grid — letters, digits, whole words.
+
+The core idea: each character gets a run of =cellsPerCharacter= cells,
+and an opacity curve across that run controls how much of a "model" to
+trace versus how much to write from memory. Multiple characters' runs
+can be laid out back-to-back (=grouped=) or interleaved (=roundRobin=)
+and the whole stream is paginated to fit a grid computed from your page
+size, margin, and cell size.
+
+* Table of Contents
+:PROPERTIES:
+:TOC:      :include all
+:END:
+
+* Installation
+
+Hisseki is not yet published to npm; install it from source.
+
+#+begin_src bash
+git clone git@github.com:landermkerbey/hisseki.git
+cd hisseki
+npm install
+npm run build      # compiles src/ -> dist/ via tsc
+#+end_src
+
+Run the compiled CLI directly:
+
+#+begin_src bash
+node dist/src/index.js --config path/to/config.json --output out.pdf
+#+end_src
+
+Or install it as a global command (uses the =bin= entry in
+=package.json=):
+
+#+begin_src bash
+npm link
+hisseki --config path/to/config.json --output out.pdf
+#+end_src
+
+Run the test suite (no network or API keys required):
+
+#+begin_src bash
+npm test
+#+end_src
+
+** Requirements
+
+- Node.js (any version supporting the TypeScript target =ES2020=;
+  Node 18+ is a safe bet).
+- A font file with the glyphs you intend to practice, if you're not
+  practicing Latin script. PDFKit's 14 standard fonts (Helvetica,
+  Times-Roman, Courier, and bold/italic/oblique variants) have *no*
+  CJK, Cyrillic, or extended Latin coverage — for anything outside
+  ASCII you must supply =fontPath= pointing at a =.ttf=/=.otf= file
+  that covers your target characters (see the run book below).
+
+* Configuration reference
+
+Hisseki takes exactly two CLI flags, both required:
+
+| Flag        | Meaning                                  |
+|-------------+-------------------------------------------|
+| =--config=  | Path to a JSON config file (see below)   |
+| =--output=  | Path to write the generated PDF to       |
+
+The config file is a single JSON object:
+
+#+begin_src json
+{
+  "pageWidth": 612,
+  "pageHeight": 792,
+  "margin": 72,
+  "cellSize": 72,
+  "mode": "grouped",
+  "font": "Helvetica",
+  "fontPath": "/optional/path/to/font.ttf",
+  "characters": [
+    {
+      "character": "永",
+      "cellsPerCharacter": 20,
+      "opacity": { "type": "fade", "start": 0.8, "end": 0.2 }
+    }
+  ]
+}
+#+end_src
+
+| Field                       | Meaning                                                                     |
+|------------------------------+------------------------------------------------------------------------------|
+| =pageWidth=, =pageHeight=    | Physical page size and grid geometry, in PDF points (1/72in).       |
+| =margin=                     | Uniform margin on all four sides, in points.                                |
+| =cellSize=                   | Edge length of each square practice cell, in points.                        |
+| =mode=                       | =grouped= (all of character A's cells, then all of B's) or =roundRobin= (A, B, A, B, ...). |
+| =font=                       | Font name passed to PDFKit. Must be one of the 14 standard names, or a name you're registering via =fontPath=. |
+| =fontPath=                   | Optional. Path to a font file to register under the =font= name.            |
+| =characters=                 | Array of character drills; see below.                                       |
+
+Each entry in =characters=:
+
+| Field                | Meaning                                                        |
+|----------------------+-----------------------------------------------------------------|
+| =character=          | The string drawn into each cell (typically one glyph).         |
+| =cellsPerCharacter=   | How many cells this character/run occupies.                    |
+| =opacity=             | One of the three opacity curves below.                         |
+
+Opacity curve types:
+
+- =\{ "type": "fixed", "opacity": N \}= — every cell at opacity N.
+- =\{ "type": "fade", "start": S, "end": E \}= — linear ramp from S
+  (first cell) to E (last cell). *Requires =cellsPerCharacter >= 2=*;
+  with exactly 1 cell this divides by zero and produces =NaN= opacity.
+- =\{ "type": "modelThenFixed", "modelOpacity": M, "practiceOpacity": P \}=
+  — cell 0 (the model to trace) at opacity M, every remaining cell at
+  opacity P.
+
+* Run book
+
+The examples below assume you've built hisseki (=npm run build=) and
+are running it as =hisseki= (via =npm link=) or as
+=node dist/src/index.js=. Substitute whichever applies.
+
+** Workflow 1: A single fixed-opacity practice sheet (Latin script, no custom font)
+
+Quick sanity check that installation works, using only PDFKit's
+built-in Helvetica — no font file needed.
+
+#+begin_src bash
+cat > drill.json <<'EOF'
+{
+  "pageWidth": 612,
+  "pageHeight": 792,
+  "margin": 72,
+  "cellSize": 72,
+  "mode": "grouped",
+  "font": "Helvetica",
+  "characters": [
+    { "character": "A", "cellsPerCharacter": 10, "opacity": { "type": "fixed", "opacity": 0.6 } }
+  ]
+}
+EOF
+hisseki --config drill.json --output drill.pdf
+#+end_src
+
+You should get a one-page PDF with a grid of cells, each containing a
+faint "A".
+
+** Workflow 2: Tracing-to-recall fade drill for a single kanji
+
+The classic "trace it faint, then darker, then write it yourself"
+progression, using a fade curve. Requires a font with the target
+glyph — download a CJK-capable font (e.g. Noto Sans CJK, or a
+handwriting-style font like Shippori Mincho) and point =fontPath= at
+it.
+
+#+begin_src bash
+cat > kanji-drill.json <<'EOF'
+{
+  "pageWidth": 612,
+  "pageHeight": 792,
+  "margin": 72,
+  "cellSize": 72,
+  "mode": "grouped",
+  "font": "PracticeFont",
+  "fontPath": "/path/to/ShipporiMincho-Regular.ttf",
+  "characters": [
+    {
+      "character": "永",
+      "cellsPerCharacter": 20,
+      "opacity": { "type": "fade", "start": 0.9, "end": 0.15 }
+    }
+  ]
+}
+EOF
+hisseki --config kanji-drill.json --output kanji-drill.pdf
+#+end_src
+
+The first cell is drawn nearly at full ink; by the last cell, only a
+faint hint of the character remains, nudging you toward writing it
+from memory.
+
+** Workflow 3: Interleaved multi-character drill (roundRobin)
+
+Practicing multiple characters together, alternating between them
+cell-by-cell, is a good way to avoid rote muscle-memory copying of a
+single shape. Use =mode: "roundRobin"= and give every character the
+*same* =cellsPerCharacter= (see [[Missing features & enhancements]] for
+why mismatched counts are currently unsafe).
+
+#+begin_src bash
+cat > interleaved.json <<'EOF'
+{
+  "pageWidth": 612,
+  "pageHeight": 792,
+  "margin": 72,
+  "cellSize": 72,
+  "mode": "roundRobin",
+  "font": "PracticeFont",
+  "fontPath": "/path/to/ShipporiMincho-Regular.ttf",
+  "characters": [
+    { "character": "永", "cellsPerCharacter": 12, "opacity": { "type": "modelThenFixed", "modelOpacity": 0.9, "practiceOpacity": 0.25 } },
+    { "character": "水", "cellsPerCharacter": 12, "opacity": { "type": "modelThenFixed", "modelOpacity": 0.9, "practiceOpacity": 0.25 } }
+  ]
+}
+EOF
+hisseki --config interleaved.json --output interleaved.pdf
+#+end_src
+
+Output alternates 永, 水, 永, 水, ... with each character showing its
+own model cell (opaque) followed by faded practice cells.
+
+** Workflow 4: A multi-page workbook for a full character set
+
+Feed in every character you're studying at once (e.g. a JLPT kanji
+list, a hiragana chart, or a set of vocabulary words); hisseki
+paginates automatically once the grid is full.
+
+#+begin_src bash
+python3 - <<'PY' > wordlist.json
+import json
+chars = ["永", "水", "木", "火", "土", "金", "山", "川"]
+config = {
+    "pageWidth": 612, "pageHeight": 792, "margin": 72, "cellSize": 72,
+    "mode": "grouped", "font": "PracticeFont",
+    "fontPath": "/path/to/ShipporiMincho-Regular.ttf",
+    "characters": [
+        {"character": c, "cellsPerCharacter": 15,
+         "opacity": {"type": "fade", "start": 0.85, "end": 0.2}}
+        for c in chars
+    ],
+}
+print(json.dumps(config, ensure_ascii=False, indent=2))
+PY
+hisseki --config wordlist.json --output workbook.pdf
+#+end_src
+
+With an 8-column x 9-row-ish grid at these settings, 8 characters x 15
+cells (=120 cells) will spill across several pages automatically —
+no extra flags needed.
+
+** Workflow 5: Debugging a config before committing to a big print job
+
+There's no dedicated "dry run" or "validate only" flag yet (see
+[[Missing features & enhancements]]), but you can validate a config
+without generating a full PDF by calling the library function
+directly:
+
+#+begin_src bash
+node -e "
+const { validateConfig } = require('./dist/src/validate');
+const config = require('./drill.json');
+try {
+  validateConfig(config);
+  console.log('config OK');
+} catch (e) {
+  console.error('invalid config:', e.message);
+  process.exit(1);
+}
+"
+#+end_src
+
+This is also useful in a pre-commit hook or CI step if you keep drill
+configs under version control.
+
+** Workflow 6: Regenerating after editing a shared config
+
+Because hisseki is a pure batch tool (read config, write PDF, exit),
+it composes naturally with a file watcher for iterative tuning of
+opacity curves or cell sizing:
+
+#+begin_src bash
+# requires entr (or use inotifywait / fswatch equivalently)
+echo drill.json | entr hisseki --config drill.json --output drill.pdf
+#+end_src
+
+Every save to =drill.json= regenerates =drill.pdf=; keep a PDF viewer
+that auto-reloads open alongside it for a fast feedback loop while
+tuning fade curves or grid density.
+
+* Missing features & enhancements
+
+This section documents gaps and rough edges found while reading the
+source, in rough order of impact. It doubles as a project roadmap.
+
+** Correctness issues (worth fixing before wider use)
+
+- [DONE] ~~Page size is hardcoded.~~ =generate.ts= now constructs
+  =new PDFDocument({ size: [pageWidth, pageHeight], ... })=, so the
+  physical PDF page always matches the grid geometry computed from the
+  config. Covered by =tests/generate.test.ts=.
+
+- [DONE] ~~Dash/opacity state leaks across cells.~~ =drawCell= now
+  calls =doc.undash().opacity(1)= after drawing its guidelines,
+  restoring solid/full-opacity state before returning so the next
+  cell's border is never accidentally dashed or faded. Covered by
+  =tests/cell.test.ts=.
+
+- [DONE] ~~=fade= opacity divides by zero when =cellsPerCharacter = 1=.~~
+  =generateCellSequence= now special-cases a single-cell =fade= run to
+  use =start= directly rather than dividing by zero. Covered by
+  =tests/sequence.test.ts=.
+
+- [DONE] ~~=roundRobin= assumes equal-length sequences.~~
+  =generateContent= now loops up to the length of the *longest*
+  sequence and skips any sequence that's already exhausted on a given
+  round, instead of reading past a shorter array's real length or
+  truncating the longest one. Covered by =tests/content.test.ts=.
+
+** Missing CLI ergonomics
+
+- No =--help=/=-h= or =--version=. Running with no arguments gives an
+  ad hoc "Error: --config is required" plus a one-line usage string;
+  there's no way to see the full config schema from the CLI itself.
+- No way to override individual config fields from the command line
+  (e.g. =--cellSize 90=) — every change requires editing the JSON file.
+- No =--dry-run=/=--validate-only= flag (see Workflow 5's workaround).
+- No way to write to stdout (e.g. =--output -=) for piping into other
+  tools.
+- No verbose/debug logging for large multi-page jobs (page count,
+  cells per page, timing).
+- Errors from PDFKit itself (e.g. an unregistered font name passed to
+  =doc.font()=, or a missing =fontPath= file) are not caught anywhere
+  in =generate()= or =index.ts=; they surface as raw uncaught
+  exceptions/stack traces rather than the clean, scoped error messages
+  the rest of =index.ts= uses.
+
+** Feature gaps relative to a "finished" handwriting-practice tool
+
+- *No vertical (tategaki) layout.* Japanese and traditional Chinese
+  writing is often practiced top-to-bottom, right-to-left; hisseki
+  only lays out left-to-right, top-to-bottom rows.
+- *No stroke-order guidance* (numbered stroke overlays or animated
+  stroke-order fonts), which is standard in kanji/hanzi workbooks.
+- *No vertical centering of the grid.* =computeLayout= centers columns
+  horizontally but always aligns rows flush to the top margin, leaving
+  any leftover vertical space entirely at the bottom of the page.
+- *No per-character font/size/color override* — one font and one
+  (implicit, PDFKit-default black) ink color for the entire document.
+  Color coding (e.g. red for the model stroke, black for practice)
+  is common in real workbooks.
+- *No answer-key/reference page* (e.g. a page listing all characters
+  with meanings/readings, separate from the practice grid).
+- *No JSON Schema for the config file* — no editor autocomplete/inline
+  validation while authoring a config; =validate.ts='s hand-rolled
+  checks are the only source of truth and only run at generation time.
+- *No named page-size presets* (A4, A5, B5) — must be hand-computed in
+  points if you don't want US Letter.
+- *No packaged example configs* beyond =testconfig.json=, which
+  contains a developer's personal absolute filesystem path
+  (=/home/lander/sync_data/...=) and isn't usable as-is by anyone else.
+
+** Housekeeping
+
+- =dist/= (compiled output) and =output.pdf= (a generated artifact)
+  are currently committed to the repository. These are build products
+  and should be produced by =npm run build=/test runs, not tracked in
+  git; add them to =.gitignore= alongside =node_modules/=.
+- No CI configuration (GitHub Actions or similar) to run =npm test= on
+  push/PR.
+- No =LICENSE= file despite =package.json= declaring ="license": "ISC"=.
+- =package.json='s =description=, =keywords=, and =author= fields are
+  empty — worth filling in once this ships anywhere public (e.g. npm).
+- =testconfig.json= at the repo root looks like a leftover manual
+  smoke-test fixture rather than part of the automated test suite
+  (which uses inline objects in =tests/*.test.ts= instead); either
+  wire it into a test or move/rename it to make its purpose clear
+  (e.g. =examples/sample-config.json= with a portable font path or
+  no =fontPath= at all).
+
+* Architecture at a glance
+
+Reading order for the pipeline, from CLI entry to PDF bytes:
+
+#+begin_example
+index.ts        CLI entry point: parse args, read + validate config, open
+                output stream, call generate(), report success/failure.
+  cli.ts         --config / --output argv parsing.
+  validate.ts    Structural validation of the parsed config object.
+  generate.ts    Orchestrates the pipeline below and drives PDFKit.
+    layout.ts     Page geometry -> grid of cell positions.
+    sequence.ts    One character's config -> its resolved per-cell opacities.
+    content.ts     Multiple characters' sequences -> one flat cell stream
+                    (grouped or roundRobin).
+    paginate.ts    Flat cell stream -> pages, given cells-per-page from layout.
+    font.ts        Optional custom font file registration.
+    cell.ts        Draws one cell's border + guideline grid.
+    character.ts   Draws one glyph, centered, into a cell at a given opacity.
+#+end_example
+
+=renderer.ts= is a secondary, grid-only entry point (layout + cell
+drawing, no glyphs/pagination) currently exercised only by tests — see
+[[Missing features & enhancements]] for a "blank grid" CLI mode that
+could be built on it.

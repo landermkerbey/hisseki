@@ -1,5 +1,10 @@
 import { CellEntry } from "./sequence";
 
+/**
+ * Splits a flat cell stream into fixed-size pages of cellsPerPage cells
+ * each (the last page may be short). Purely arithmetic — has no
+ * knowledge of PDF rendering or grid geometry.
+ */
 export function paginateContent(cells: CellEntry[], cellsPerPage: number): CellEntry[][] {
   const pages: CellEntry[][] = [];
 

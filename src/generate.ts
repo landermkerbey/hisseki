@@ -8,6 +8,7 @@ import { drawCell } from "./cell";
 import { drawCharacter } from "./character";
 import { registerFont } from "./font";
 
+/** Full set of inputs needed to render a practice-sheet PDF end to end. This is the shape validate.ts checks and index.ts loads from --config. */
 export interface GenerateParams {
   outputStream: Writable;
   pageWidth: number;
@@ -20,6 +21,16 @@ export interface GenerateParams {
   fontPath?: string;
 }
 
+/**
+ * Top-level pipeline: layout -> content -> pagination -> PDF rendering.
+ *
+ * The PDF page size is set to [pageWidth, pageHeight] from params, so
+ * the grid computed by computeLayout always matches the physical page.
+ *
+ * doc.end() is called synchronously but PDF writing is async; callers
+ * must wait for the outputStream's "finish" event before treating the
+ * file as complete (see index.ts).
+ */
 export function generate(params: GenerateParams): void {
   const { outputStream, mode, characters, font, fontPath, ...layoutParams } = params;
 
@@ -29,7 +40,11 @@ export function generate(params: GenerateParams): void {
   const content = generateContent({ mode, characters });
   const pages = paginateContent(content, cellsPerPage);
 
-  const doc = new PDFDocument({ size: "LETTER", margin: 0, autoFirstPage: false });
+  const doc = new PDFDocument({
+    size: [params.pageWidth, params.pageHeight],
+    margin: 0,
+    autoFirstPage: false,
+  });
   doc.pipe(outputStream);
 
   registerFont(doc, font, fontPath);

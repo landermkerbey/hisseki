@@ -1,5 +1,12 @@
 import { Cell } from "./layout";
 
+/**
+ * Draws one glyph centered inside a cell at a given opacity. Vertical
+ * centering uses PDFKit's reported line height for the current font,
+ * so results depend on the font's own metrics (see registerFont).
+ * Horizontal centering uses PDFKit's built-in `align: "center"` text
+ * option over the full cell width.
+ */
 export function drawCharacter(
   doc: any,
   cell: Cell,

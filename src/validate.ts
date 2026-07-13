@@ -1,3 +1,12 @@
+/**
+ * Validates a parsed JSON config object against the shape GenerateParams
+ * expects, throwing a descriptive Error on the first problem found.
+ * This is the only place config shape is enforced — generate() itself
+ * trusts its input. fontPath and outputStream are intentionally not
+ * validated here: fontPath is optional and unchecked (a bad path
+ * surfaces later as a PDFKit error), and outputStream isn't part of
+ * the on-disk config at all (index.ts adds it after validation).
+ */
 export function validateConfig(config: any): void {
   if (typeof config.pageWidth !== "number" || config.pageWidth <= 0)
     throw new Error("pageWidth must be a positive number");

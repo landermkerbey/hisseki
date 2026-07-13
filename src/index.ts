@@ -4,6 +4,18 @@ import { parseArgs } from "./cli";
 import { generate } from "./generate";
 import { validateConfig } from "./validate";
 
+/**
+ * CLI entry point (the `hisseki` bin). Order of operations:
+ * parse argv -> read + JSON.parse config file -> validate config shape
+ * -> open output stream -> generate() the PDF into it.
+ *
+ * Each stage exits(1) with a scoped error message on failure, so
+ * failures are easy to attribute to argument parsing, config I/O,
+ * config shape, or output I/O. generate() itself has no error handling
+ * of its own; a PDFKit failure partway through rendering (e.g. an
+ * unregistered font name) will surface as an uncaught exception rather
+ * than one of these clean messages.
+ */
 function main(): void {
   let args;
 
