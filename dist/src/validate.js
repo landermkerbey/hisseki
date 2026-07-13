@@ -41,6 +41,8 @@ function validateConfig(config) {
             throw new Error(`character at index ${i} must have a non-empty character string`);
         if (typeof entry.cellsPerCharacter !== "number" || entry.cellsPerCharacter <= 0)
             throw new Error(`character at index ${i} must have a positive cellsPerCharacter`);
+        if (entry.strokeOrder !== undefined && typeof entry.strokeOrder !== "boolean")
+            throw new Error(`character at index ${i} strokeOrder must be a boolean`);
         validateOpacity(entry.opacity, i);
     }
 }

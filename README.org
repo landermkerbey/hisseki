@@ -132,6 +132,7 @@ Each entry in =characters=:
 | =character=          | The string drawn into each cell (typically one glyph).         |
 | =cellsPerCharacter=   | How many cells this character/run occupies.                    |
 | =opacity=             | One of the three opacity curves below.                         |
+| =strokeOrder=         | Optional, default =false=. See "Stroke-order guidance" below.  |
 
 Opacity curve types:
 
@@ -142,6 +143,39 @@ Opacity curve types:
 - =\{ "type": "modelThenFixed", "modelOpacity": M, "practiceOpacity": P \}=
   — cell 0 (the model to trace) at opacity M, every remaining cell at
   opacity P.
+
+** Stroke-order guidance
+
+Setting ="strokeOrder": true= on a character entry renders that
+character using real stroke-path data (from the
+[[https://github.com/skishore/makemeahanzi][Make Me a Hanzi]] project,
+via the =hanzi-writer-data= npm package) instead of the configured
+font's glyph:
+
+- Each stroke is drawn as its own filled shape, in stroke order.
+- The first ("model") cell of the character's run additionally shows
+  a small *red* number at the start of each stroke, indicating the
+  order to draw them in. Numbers are always drawn at full opacity
+  regardless of the character's own opacity/fade level, so they stay
+  legible even against a fully-opaque black model glyph — a black
+  number on solid black strokes would otherwise be nearly invisible.
+  Later repetitions of the same character show the strokes without
+  numbers, matching how printed workbooks typically number strokes
+  once on the reference glyph rather than on every practice
+  repetition.
+- Opacity still applies exactly as it does for font-rendered
+  characters — a =fade= or =modelThenFixed= curve fades the stroke
+  shapes the same way it would fade plain text (the numbers
+  themselves are the one exception, per above).
+
+This dataset only covers Chinese-hanzi-derived characters (which
+includes the large majority of Japanese kanji, since the two scripts
+share most of their characters) — it does *not* include hiragana,
+katakana, or non-CJK scripts. If =strokeOrder: true= is set on a
+character with no matching data, hisseki automatically falls back to
+the normal font-rendered glyph for that character; no error is raised
+and no config change is needed to mix stroke-order kanji with
+font-rendered kana in the same document (see Workflow 8).
 
 * Run book
 
@@ -392,6 +426,54 @@ margins, and cell size are identical to the equivalent horizontal
 config; =--dry-run= reports the same page/grid/cell counts regardless
 of =direction=.
 
+** Workflow 8: Numbered stroke-order kanji practice, mixed with plain kana
+
+Install the optional stroke data package once (it's a real dependency
+of hisseki, so a normal =npm install= already pulls it in — this is
+just a reminder of its size):
+
+#+begin_src bash
+du -sh node_modules/hanzi-writer-data   # ~47MB; see "Housekeeping" notes
+#+end_src
+
+Set ="strokeOrder": true= on any kanji/hanzi character entries. Kana
+entries can live in the same config without it (or with it — it's a
+harmless no-op for characters the dataset doesn't cover):
+
+#+begin_src bash
+cat > stroke-drill.json <<'EOF'
+{
+  "pageWidth": 500,
+  "pageHeight": 300,
+  "margin": 20,
+  "cellSize": 100,
+  "mode": "grouped",
+  "font": "PracticeFont",
+  "fontPath": "/path/to/ShipporiMincho-Regular.ttf",
+  "characters": [
+    {
+      "character": "永",
+      "cellsPerCharacter": 3,
+      "opacity": { "type": "modelThenFixed", "modelOpacity": 1, "practiceOpacity": 0.3 },
+      "strokeOrder": true
+    },
+    {
+      "character": "あ",
+      "cellsPerCharacter": 2,
+      "opacity": { "type": "fixed", "opacity": 0.7 },
+      "strokeOrder": true
+    }
+  ]
+}
+EOF
+hisseki --config stroke-drill.json --output stroke-drill.pdf
+#+end_src
+
+The resulting sheet shows 永 with its real stroke shapes and numbered
+stroke order on the first (model) cell, faded unnumbered repeats after
+it, and あ rendered normally from the font — =strokeOrder: true= on あ is
+a no-op here since hiragana isn't in the dataset.
+
 * Missing features & enhancements
 
 This section documents gaps and rough edges found while reading the
@@ -496,8 +578,37 @@ source, in rough order of impact. It doubles as a project roadmap.
   (=grouped=/=roundRobin=), opacity curve, or page count. Covered by
   =tests/layout.test.ts=, =tests/validate.test.ts=, =tests/generate.test.ts=,
   and =tests/cli.test.ts=.
-- *No stroke-order guidance* (numbered stroke overlays or animated
-  stroke-order fonts), which is standard in kanji/hanzi workbooks.
+- [DONE] ~~No stroke-order guidance.~~ Setting ="strokeOrder": true=
+  on a character entry renders it using real stroke-path data from the
+  Make Me a Hanzi project (via the =hanzi-writer-data= npm package,
+  now a real dependency — see the Housekeeping note on its size)
+  instead of the configured font's glyph: each stroke is drawn as its
+  own filled shape in stroke order, and the first ("model") cell of a
+  character's run additionally shows a number at each stroke's start.
+  Characters not covered by the dataset (hiragana, katakana, non-CJK
+  scripts) automatically and silently fall back to the existing
+  font-rendered glyph — =strokeOrder: true= is always safe to set,
+  even on a whole document's worth of mixed kanji/kana. Implemented as
+  three focused modules: =src/strokeTransform.ts= (pure coordinate
+  math mapping the dataset's fixed 1024x1024 box onto a cell),
+  =src/strokeData.ts= (character lookup + graceful fallback when the
+  package or that character's data is missing), and
+  =src/strokeCharacter.ts= (the actual PDFKit drawing, via =doc.path()=
+  fed the dataset's SVG path strings directly, plus numbered labels at
+  each stroke's median start point — always drawn in red at full
+  opacity, regardless of the character's own opacity/fade level, since
+  a black number on a fully-opaque black stroke fill is otherwise
+  nearly impossible to read; fill color and opacity are restored
+  afterward so this doesn't bleed into whatever is drawn next).
+  Verified end-to-end with real rendered output (converted to PNG and
+  visually inspected, including the red-on-black contrast fix) as well
+  as unit tests: =tests/strokeTransform.test.ts=, =tests/strokeData.test.ts=,
+  =tests/strokeCharacter.test.ts=, plus wiring tests in
+  =tests/sequence.test.ts=, =tests/validate.test.ts=, and
+  =tests/generate.test.ts=. Only the first cell of a run shows numbers,
+  by design (see =CellEntry.isFirstCell= in =src/sequence.ts=) —
+  matching how printed workbooks typically number strokes once on the
+  reference glyph, not on every practice repetition.
 - *No vertical centering of the grid.* =computeLayout= centers columns
   horizontally but always aligns rows flush to the top margin, leaving
   any leftover vertical space entirely at the bottom of the page.
@@ -533,6 +644,17 @@ source, in rough order of impact. It doubles as a project roadmap.
   wire it into a test or move/rename it to make its purpose clear
   (e.g. =examples/sample-config.json= with a portable font path or
   no =fontPath= at all).
+- =hanzi-writer-data= (added for stroke-order guidance) is a real
+  dependency weighing in around 47MB unpacked — 9,575 individual
+  per-character JSON files. This is the cost of shipping real,
+  offline-usable stroke-order data rather than fetching it from a CDN
+  at generation time; it's a legitimate trade-off, but worth knowing
+  before running =npm install= somewhere disk- or bandwidth-
+  constrained. A future version could make this an optional/peer
+  dependency instead, since =strokeOrder= already degrades gracefully
+  to font rendering when the package isn't installed at all (verified
+  manually by removing =node_modules/hanzi-writer-data= and confirming
+  =loadStrokeData= returns =undefined= without throwing).
 
 * Architecture at a glance
 
@@ -552,6 +674,10 @@ index.ts        CLI entry point: parse args, read + validate config, open
     font.ts        Optional custom font file registration.
     cell.ts        Draws one cell's border + guideline grid.
     character.ts   Draws one glyph, centered, into a cell at a given opacity.
+    strokeData.ts       Looks up a character's stroke-order data (or undefined).
+    strokeTransform.ts   Pure coordinate math: dataset's 1024x1024 box -> cell.
+    strokeCharacter.ts   Draws real stroke shapes + numbered order, using the above.
+  version.ts     Reads the installed version from the nearest package.json.
 #+end_example
 
 =renderer.ts= is a secondary, grid-only entry point (layout + cell

@@ -7,6 +7,8 @@ import { paginateContent } from "./paginate";
 import { drawCell } from "./cell";
 import { drawCharacter } from "./character";
 import { registerFont } from "./font";
+import { loadStrokeData } from "./strokeData";
+import { drawStrokeOrderCharacter } from "./strokeCharacter";
 
 /** Full set of inputs needed to render a practice-sheet PDF end to end. This is the shape validate.ts checks and index.ts loads from --config. */
 export interface GenerateParams {
@@ -60,8 +62,25 @@ export function generate(params: GenerateParams): any {
 
     for (let i = 0; i < page.length; i++) {
       const cell = layout.cells[i];
+      const entry = page[i];
       drawCell(doc, cell, params.cellSize);
-      drawCharacter(doc, cell, params.cellSize, page[i].character, font, page[i].opacity);
+
+      // strokeOrder rendering is opt-in per character and only attempted
+      // when data actually exists for it; anything not covered by the
+      // stroke dataset (e.g. hiragana, katakana, Latin) falls back to
+      // the normal font glyph exactly as if strokeOrder were false.
+      const strokeData = entry.strokeOrder ? loadStrokeData(entry.character) : undefined;
+
+      if (strokeData) {
+        // Numbers are only shown on the first ("model") cell of a
+        // character's run, matching how real workbooks number strokes
+        // once on the reference glyph rather than on every repetition.
+        drawStrokeOrderCharacter(doc, cell, params.cellSize, strokeData, entry.opacity, {
+          showNumbers: entry.isFirstCell,
+        });
+      } else {
+        drawCharacter(doc, cell, params.cellSize, entry.character, font, entry.opacity);
+      }
     }
   }
 

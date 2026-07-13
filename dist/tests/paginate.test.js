@@ -6,6 +6,8 @@ describe("paginateContent", () => {
         const cells = Array.from({ length: 10 }, (_, i) => ({
             character: "永",
             opacity: 0.5,
+            strokeOrder: false,
+            isFirstCell: i === 0,
         }));
         const result = (0, paginate_1.paginateContent)(cells, 4);
         expect(result).toHaveLength(3);
@@ -14,9 +16,11 @@ describe("paginateContent", () => {
         expect(result[2]).toHaveLength(2);
     });
     it("returns a single page when content fits exactly", () => {
-        const cells = Array.from({ length: 6 }, () => ({
+        const cells = Array.from({ length: 6 }, (_, i) => ({
             character: "水",
             opacity: 0.4,
+            strokeOrder: false,
+            isFirstCell: i === 0,
         }));
         const result = (0, paginate_1.paginateContent)(cells, 6);
         expect(result).toHaveLength(1);

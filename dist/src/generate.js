@@ -11,6 +11,8 @@ const paginate_1 = require("./paginate");
 const cell_1 = require("./cell");
 const character_1 = require("./character");
 const font_1 = require("./font");
+const strokeData_1 = require("./strokeData");
+const strokeCharacter_1 = require("./strokeCharacter");
 /**
  * Top-level pipeline: layout -> content -> pagination -> PDF rendering.
  *
@@ -42,8 +44,24 @@ function generate(params) {
         doc.addPage();
         for (let i = 0; i < page.length; i++) {
             const cell = layout.cells[i];
+            const entry = page[i];
             (0, cell_1.drawCell)(doc, cell, params.cellSize);
-            (0, character_1.drawCharacter)(doc, cell, params.cellSize, page[i].character, font, page[i].opacity);
+            // strokeOrder rendering is opt-in per character and only attempted
+            // when data actually exists for it; anything not covered by the
+            // stroke dataset (e.g. hiragana, katakana, Latin) falls back to
+            // the normal font glyph exactly as if strokeOrder were false.
+            const strokeData = entry.strokeOrder ? (0, strokeData_1.loadStrokeData)(entry.character) : undefined;
+            if (strokeData) {
+                // Numbers are only shown on the first ("model") cell of a
+                // character's run, matching how real workbooks number strokes
+                // once on the reference glyph rather than on every repetition.
+                (0, strokeCharacter_1.drawStrokeOrderCharacter)(doc, cell, params.cellSize, strokeData, entry.opacity, {
+                    showNumbers: entry.isFirstCell,
+                });
+            }
+            else {
+                (0, character_1.drawCharacter)(doc, cell, params.cellSize, entry.character, font, entry.opacity);
+            }
         }
     }
     doc.end();

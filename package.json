@@ -17,14 +17,15 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "hanzi-writer-data": "^2.0.1",
     "minimist": "^1.2.8",
     "pdfkit": "^0.17.2"
   },
   "bin": {
-      "hisseki": "dist/index.js"
+    "hisseki": "dist/index.js"
   },
   "scripts": {
-      "build": "tsc",
-      "test": "jest"
+    "build": "tsc",
+    "test": "jest"
   }
 }

@@ -9,7 +9,7 @@ exports.generateCellSequence = generateCellSequence;
  * across, so it uses `start` directly rather than dividing by zero.
  */
 function generateCellSequence(config) {
-    const { character, cellsPerCharacter, opacity } = config;
+    const { character, cellsPerCharacter, opacity, strokeOrder = false } = config;
     const cells = [];
     for (let i = 0; i < cellsPerCharacter; i++) {
         let cellOpacity;
@@ -30,7 +30,7 @@ function generateCellSequence(config) {
                 cellOpacity = i === 0 ? opacity.modelOpacity : opacity.practiceOpacity;
                 break;
         }
-        cells.push({ character, opacity: cellOpacity });
+        cells.push({ character, opacity: cellOpacity, strokeOrder, isFirstCell: i === 0 });
     }
     return cells;
 }

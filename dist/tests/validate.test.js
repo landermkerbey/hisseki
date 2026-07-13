@@ -56,6 +56,21 @@ describe("validateConfig", () => {
         const characters = [{ ...validConfig.characters[0], cellsPerCharacter: 0 }];
         expect(() => (0, validate_1.validateConfig)({ ...validConfig, characters })).toThrow("character at index 0 must have a positive cellsPerCharacter");
     });
+    it("accepts a character entry with no strokeOrder field", () => {
+        expect(() => (0, validate_1.validateConfig)(validConfig)).not.toThrow();
+    });
+    it("accepts a character entry with strokeOrder: true", () => {
+        const characters = [{ ...validConfig.characters[0], strokeOrder: true }];
+        expect(() => (0, validate_1.validateConfig)({ ...validConfig, characters })).not.toThrow();
+    });
+    it("accepts a character entry with strokeOrder: false", () => {
+        const characters = [{ ...validConfig.characters[0], strokeOrder: false }];
+        expect(() => (0, validate_1.validateConfig)({ ...validConfig, characters })).not.toThrow();
+    });
+    it("throws when strokeOrder is present but not a boolean", () => {
+        const characters = [{ ...validConfig.characters[0], strokeOrder: "yes" }];
+        expect(() => (0, validate_1.validateConfig)({ ...validConfig, characters })).toThrow("character at index 0 strokeOrder must be a boolean");
+    });
     it("throws when opacity type is invalid", () => {
         const characters = [{ ...validConfig.characters[0], opacity: { type: "random" } }];
         expect(() => (0, validate_1.validateConfig)({ ...validConfig, characters })).toThrow('character at index 0 has an invalid opacity type');

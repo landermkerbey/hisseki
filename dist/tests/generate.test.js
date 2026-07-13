@@ -1,6 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const stream_1 = require("stream");
+const loadStrokeDataMock = jest.fn();
+jest.mock("../src/strokeData", () => ({
+    loadStrokeData: (character) => loadStrokeDataMock(character),
+}));
+const drawStrokeOrderCharacterMock = jest.fn();
+jest.mock("../src/strokeCharacter", () => ({
+    drawStrokeOrderCharacter: (...args) => drawStrokeOrderCharacterMock(...args),
+}));
 const mockDocInstance = {
     pipe: jest.fn().mockReturnThis(),
     addPage: jest.fn().mockReturnThis(),
@@ -26,6 +34,8 @@ const generate_1 = require("../src/generate");
 describe("generate", () => {
     beforeEach(() => {
         MockPDFDocument.mockClear();
+        loadStrokeDataMock.mockReset();
+        drawStrokeOrderCharacterMock.mockReset();
         Object.values(mockDocInstance).forEach((fn) => {
             if (jest.isMockFunction(fn))
                 fn.mockClear();
@@ -75,6 +85,76 @@ describe("generate", () => {
             font: "Helvetica",
         });
         expect(MockPDFDocument).toHaveBeenCalledWith(expect.objectContaining({ size: [612, 792] }));
+    });
+    describe("strokeOrder", () => {
+        it("never calls loadStrokeData for characters with strokeOrder omitted/false", () => {
+            (0, generate_1.generate)({
+                outputStream: new stream_1.PassThrough(),
+                pageWidth: 300,
+                pageHeight: 300,
+                margin: 0,
+                cellSize: 100,
+                mode: "grouped",
+                characters: [
+                    { character: "A", cellsPerCharacter: 1, opacity: { type: "fixed", opacity: 1 } },
+                ],
+                font: "Helvetica",
+            });
+            expect(loadStrokeDataMock).not.toHaveBeenCalled();
+            expect(drawStrokeOrderCharacterMock).not.toHaveBeenCalled();
+            expect(mockDocInstance.text).toHaveBeenCalled(); // fell through to drawCharacter
+        });
+        it("uses drawStrokeOrderCharacter when strokeOrder is true and data is found, showing numbers only on the first cell", () => {
+            const fakeData = { strokes: ["M 0 0 Z"], medians: [[[0, 0]]] };
+            loadStrokeDataMock.mockReturnValue(fakeData);
+            (0, generate_1.generate)({
+                outputStream: new stream_1.PassThrough(),
+                pageWidth: 300,
+                pageHeight: 300,
+                margin: 0,
+                cellSize: 100,
+                mode: "grouped",
+                characters: [
+                    {
+                        character: "永",
+                        cellsPerCharacter: 2,
+                        opacity: { type: "fixed", opacity: 0.5 },
+                        strokeOrder: true,
+                    },
+                ],
+                font: "Helvetica",
+            });
+            expect(loadStrokeDataMock).toHaveBeenCalledWith("永");
+            expect(drawStrokeOrderCharacterMock).toHaveBeenCalledTimes(2);
+            expect(mockDocInstance.text).not.toHaveBeenCalled(); // never fell back to drawCharacter
+            // First cell (the "model") shows stroke numbers; the second
+            // (practice) cell does not.
+            expect(drawStrokeOrderCharacterMock).toHaveBeenNthCalledWith(1, mockDocInstance, expect.anything(), 100, fakeData, 0.5, { showNumbers: true });
+            expect(drawStrokeOrderCharacterMock).toHaveBeenNthCalledWith(2, mockDocInstance, expect.anything(), 100, fakeData, 0.5, { showNumbers: false });
+        });
+        it("falls back to drawCharacter (plain font glyph) when strokeOrder is true but no data is found for the character", () => {
+            loadStrokeDataMock.mockReturnValue(undefined);
+            (0, generate_1.generate)({
+                outputStream: new stream_1.PassThrough(),
+                pageWidth: 300,
+                pageHeight: 300,
+                margin: 0,
+                cellSize: 100,
+                mode: "grouped",
+                characters: [
+                    {
+                        character: "あ", // hiragana, not covered by the stroke dataset
+                        cellsPerCharacter: 1,
+                        opacity: { type: "fixed", opacity: 1 },
+                        strokeOrder: true,
+                    },
+                ],
+                font: "Helvetica",
+            });
+            expect(loadStrokeDataMock).toHaveBeenCalledWith("あ");
+            expect(drawStrokeOrderCharacterMock).not.toHaveBeenCalled();
+            expect(mockDocInstance.text).toHaveBeenCalled();
+        });
     });
     describe("direction", () => {
         it("draws cells in row-major, left-to-right order by default (direction omitted)", () => {

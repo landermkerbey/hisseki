@@ -82,6 +82,27 @@ describe("validateConfig", () => {
     );
   });
 
+  it("accepts a character entry with no strokeOrder field", () => {
+    expect(() => validateConfig(validConfig)).not.toThrow();
+  });
+
+  it("accepts a character entry with strokeOrder: true", () => {
+    const characters = [{ ...validConfig.characters[0], strokeOrder: true }];
+    expect(() => validateConfig({ ...validConfig, characters })).not.toThrow();
+  });
+
+  it("accepts a character entry with strokeOrder: false", () => {
+    const characters = [{ ...validConfig.characters[0], strokeOrder: false }];
+    expect(() => validateConfig({ ...validConfig, characters })).not.toThrow();
+  });
+
+  it("throws when strokeOrder is present but not a boolean", () => {
+    const characters = [{ ...validConfig.characters[0], strokeOrder: "yes" }];
+    expect(() => validateConfig({ ...validConfig, characters })).toThrow(
+      "character at index 0 strokeOrder must be a boolean"
+    );
+  });
+
   it("throws when opacity type is invalid", () => {
     const characters = [{ ...validConfig.characters[0], opacity: { type: "random" } }];
     expect(() => validateConfig({ ...validConfig, characters })).toThrow(

@@ -11,12 +11,12 @@ describe("generateContent", () => {
             ],
         });
         expect(result).toEqual([
-            { character: "永", opacity: 0.5 },
-            { character: "永", opacity: 0.5 },
-            { character: "永", opacity: 0.5 },
-            { character: "水", opacity: 0.4 },
-            { character: "水", opacity: 0.4 },
-            { character: "水", opacity: 0.4 },
+            { character: "永", opacity: 0.5, strokeOrder: false, isFirstCell: true },
+            { character: "永", opacity: 0.5, strokeOrder: false, isFirstCell: false },
+            { character: "永", opacity: 0.5, strokeOrder: false, isFirstCell: false },
+            { character: "水", opacity: 0.4, strokeOrder: false, isFirstCell: true },
+            { character: "水", opacity: 0.4, strokeOrder: false, isFirstCell: false },
+            { character: "水", opacity: 0.4, strokeOrder: false, isFirstCell: false },
         ]);
     });
     it("interleaves characters in roundRobin mode", () => {
@@ -28,12 +28,12 @@ describe("generateContent", () => {
             ],
         });
         expect(result).toEqual([
-            { character: "永", opacity: 0.5 },
-            { character: "水", opacity: 0.4 },
-            { character: "永", opacity: 0.5 },
-            { character: "水", opacity: 0.4 },
-            { character: "永", opacity: 0.5 },
-            { character: "水", opacity: 0.4 },
+            { character: "永", opacity: 0.5, strokeOrder: false, isFirstCell: true },
+            { character: "水", opacity: 0.4, strokeOrder: false, isFirstCell: true },
+            { character: "永", opacity: 0.5, strokeOrder: false, isFirstCell: false },
+            { character: "水", opacity: 0.4, strokeOrder: false, isFirstCell: false },
+            { character: "永", opacity: 0.5, strokeOrder: false, isFirstCell: false },
+            { character: "水", opacity: 0.4, strokeOrder: false, isFirstCell: false },
         ]);
     });
     it("interleaves characters with differing cellsPerCharacter without dropping or corrupting entries", () => {
@@ -47,12 +47,12 @@ describe("generateContent", () => {
         // "永" is exhausted after 2 rounds; from then on only "水" contributes,
         // instead of pushing undefined placeholders or truncating "水".
         expect(result).toEqual([
-            { character: "永", opacity: 0.5 },
-            { character: "水", opacity: 0.4 },
-            { character: "永", opacity: 0.5 },
-            { character: "水", opacity: 0.4 },
-            { character: "水", opacity: 0.4 },
-            { character: "水", opacity: 0.4 },
+            { character: "永", opacity: 0.5, strokeOrder: false, isFirstCell: true },
+            { character: "水", opacity: 0.4, strokeOrder: false, isFirstCell: true },
+            { character: "永", opacity: 0.5, strokeOrder: false, isFirstCell: false },
+            { character: "水", opacity: 0.4, strokeOrder: false, isFirstCell: false },
+            { character: "水", opacity: 0.4, strokeOrder: false, isFirstCell: false },
+            { character: "水", opacity: 0.4, strokeOrder: false, isFirstCell: false },
         ]);
         // No undefined/sparse entries anywhere in the output.
         expect(result.every((entry) => entry !== undefined)).toBe(true);
