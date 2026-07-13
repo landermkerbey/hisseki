@@ -53,6 +53,23 @@ describe("generate", () => {
     );
   });
 
+  it("returns the underlying PDFDocument so callers can observe completion independent of the destination stream's own 'finish' event", () => {
+    const result = generate({
+      outputStream: new PassThrough(),
+      pageWidth: 612,
+      pageHeight: 792,
+      margin: 72,
+      cellSize: 72,
+      mode: "grouped",
+      characters: [
+        { character: "永", cellsPerCharacter: 1, opacity: { type: "fixed", opacity: 1 } },
+      ],
+      font: "Helvetica",
+    });
+
+    expect(result).toBe(mockDocInstance);
+  });
+
   it("still produces a document for the standard Letter size", () => {
     generate({
       outputStream: new PassThrough(),

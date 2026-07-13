@@ -9,6 +9,7 @@ describe("renderPage", () => {
             lineTo: jest.fn().mockReturnThis(),
             stroke: jest.fn().mockReturnThis(),
             dash: jest.fn().mockReturnThis(),
+            undash: jest.fn().mockReturnThis(),
             opacity: jest.fn().mockReturnThis(),
         };
         (0, renderer_1.renderPage)(mockDoc, {

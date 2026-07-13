@@ -249,27 +249,71 @@ no extra flags needed.
 
 ** Workflow 5: Debugging a config before committing to a big print job
 
-There's no dedicated "dry run" or "validate only" flag yet (see
-[[Missing features & enhancements]]), but you can validate a config
-without generating a full PDF by calling the library function
-directly:
+Use =--dry-run= to validate a config and see what it would produce
+— page count, grid size, total cells — without generating a PDF or
+requiring =--output= at all:
 
 #+begin_src bash
-node -e "
-const { validateConfig } = require('./dist/src/validate');
-const config = require('./drill.json');
-try {
-  validateConfig(config);
-  console.log('config OK');
-} catch (e) {
-  console.error('invalid config:', e.message);
-  process.exit(1);
-}
-"
+hisseki --config drill.json --dry-run
+# Config OK: 1 page(s), 6x6 grid (36 cells/page), 20 cell(s) total.
 #+end_src
 
-This is also useful in a pre-commit hook or CI step if you keep drill
+An invalid config reports the same scoped error message (and exit
+code 1) a real run would, just without ever touching PDFKit:
+
+#+begin_src bash
+hisseki --config broken.json --dry-run
+# Invalid config: cellSize must fit at least one column and one row within the page margins
+#+end_src
+
+=--dry-run= also respects CLI overrides (see the config reference's
+override flags), so you can sanity-check a hypothetical change before
+committing to it:
+
+#+begin_src bash
+hisseki --config drill.json --dry-run --cellSize 90
+#+end_src
+
+This is useful in a pre-commit hook or CI step if you keep drill
 configs under version control.
+
+** Workflow 5b: Piping a generated PDF into another tool
+
+=--output -= writes the PDF to stdout instead of a file, so it
+composes with shell pipelines instead of requiring an intermediate
+file:
+
+#+begin_src bash
+hisseki --config drill.json --output - > drill.pdf
+
+# or pipe straight into another tool, e.g. a PDF page counter:
+hisseki --config drill.json --output - | pdfinfo -
+#+end_src
+
+Status messages (like the "Written to stdout" confirmation) are sent
+to stderr, not stdout, specifically so they never end up interleaved
+with the binary PDF bytes on stdout.
+
+** Workflow 6a: Tweaking one field for a one-off print without editing the config
+
+CLI override flags let you try a different cell size, mode, or font
+without touching the underlying config file — handy for quick
+variations of a config you don't want to fork:
+
+#+begin_src bash
+# Same drill, but bigger cells and no config file edit:
+hisseki --config drill.json --output drill-large.pdf --cellSize 100
+
+# Preview what roundRobin mode would produce for an otherwise-grouped config:
+hisseki --config interleaved.json --dry-run --mode roundRobin
+#+end_src
+
+Override flags always take precedence over the config file's own
+values for the fields they set; anything not passed on the command
+line still comes from the file. Only top-level scalar fields
+(=pageWidth=, =pageHeight=, =margin=, =cellSize=, =mode=, =font=,
+=fontPath=) can be overridden this way — the =characters= array must
+still come from the config file.
 
 ** Workflow 6: Regenerating after editing a shared config
 
@@ -317,16 +361,42 @@ source, in rough order of impact. It doubles as a project roadmap.
 
 ** Missing CLI ergonomics
 
-- No =--help=/=-h= or =--version=. Running with no arguments gives an
-  ad hoc "Error: --config is required" plus a one-line usage string;
-  there's no way to see the full config schema from the CLI itself.
-- No way to override individual config fields from the command line
-  (e.g. =--cellSize 90=) — every change requires editing the JSON file.
-- No =--dry-run=/=--validate-only= flag (see Workflow 5's workaround).
-- No way to write to stdout (e.g. =--output -=) for piping into other
-  tools.
+- [DONE] ~~No =--help=/=-h= or =--version=.~~ Both are now supported;
+  =--help=/=-h= prints full usage (including override flags), and
+  =--version=/=-v= prints the installed version (read from the nearest
+  =package.json= via =src/version.ts=, so it works whether run from
+  =src/= under ts-jest or from compiled =dist/src/=). Covered by
+  =tests/cli.test.ts= and =tests/index.test.ts=.
+
+- [DONE] ~~No way to override individual config fields from the
+  command line.~~ =--pageWidth=, =--pageHeight=, =--margin=,
+  =--cellSize=, =--mode=, =--font=, and =--fontPath= can all be passed
+  as flags (e.g. =--cellSize 90=) and are layered on top of
+  =--config='s values before validation. The =characters= array still
+  has no CLI representation and must come from the config file.
+  Covered by =tests/cli.test.ts= and =tests/index.test.ts=.
+
+- [DONE] ~~No =--dry-run=/=--validate-only= flag.~~ =--dry-run=
+  validates the (override-merged) config and prints a one-line summary
+  (page count, grid size, total cells) without touching PDFKit or the
+  filesystem, and without requiring =--output=. This supersedes
+  Workflow 5's =node -e= workaround. Covered by =tests/index.test.ts=.
+
+- [DONE] ~~No way to write to stdout.~~ =--output -= writes the PDF to
+  stdout instead of a file. Note this required a real fix, not just
+  plumbing: Node's =stream.pipe()= deliberately never calls =.end()=
+  on =process.stdout=/=process.stderr= (to avoid closing the real fd),
+  so the output stream's own ="finish"= event never fires for stdout.
+  =generate()= now returns the underlying PDFKit document, and
+  =index.ts= listens for *its* ="end"= event instead when writing to
+  stdout. The "Written to stdout" confirmation is deliberately sent to
+  stderr, not stdout, so it can't corrupt a real
+  =--output - > out.pdf= redirect. Covered by =tests/generate.test.ts=
+  and =tests/index.test.ts= (including a regression test using a
+  stream that never fires ="finish"=, to catch this exact bug class).
+
 - No verbose/debug logging for large multi-page jobs (page count,
-  cells per page, timing).
+  cells per page, timing) outside of what =--dry-run= now reports.
 - Errors from PDFKit itself (e.g. an unregistered font name passed to
   =doc.font()=, or a missing =fontPath= file) are not caught anywhere
   in =generate()= or =index.ts=; they surface as raw uncaught

@@ -36,4 +36,25 @@ describe("generateContent", () => {
             { character: "水", opacity: 0.4 },
         ]);
     });
+    it("interleaves characters with differing cellsPerCharacter without dropping or corrupting entries", () => {
+        const result = (0, content_1.generateContent)({
+            mode: "roundRobin",
+            characters: [
+                { character: "永", cellsPerCharacter: 2, opacity: { type: "fixed", opacity: 0.5 } },
+                { character: "水", cellsPerCharacter: 4, opacity: { type: "fixed", opacity: 0.4 } },
+            ],
+        });
+        // "永" is exhausted after 2 rounds; from then on only "水" contributes,
+        // instead of pushing undefined placeholders or truncating "水".
+        expect(result).toEqual([
+            { character: "永", opacity: 0.5 },
+            { character: "水", opacity: 0.4 },
+            { character: "永", opacity: 0.5 },
+            { character: "水", opacity: 0.4 },
+            { character: "水", opacity: 0.4 },
+            { character: "水", opacity: 0.4 },
+        ]);
+        // No undefined/sparse entries anywhere in the output.
+        expect(result.every((entry) => entry !== undefined)).toBe(true);
+    });
 });

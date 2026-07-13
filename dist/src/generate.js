@@ -11,13 +11,31 @@ const paginate_1 = require("./paginate");
 const cell_1 = require("./cell");
 const character_1 = require("./character");
 const font_1 = require("./font");
+/**
+ * Top-level pipeline: layout -> content -> pagination -> PDF rendering.
+ *
+ * The PDF page size is set to [pageWidth, pageHeight] from params, so
+ * the grid computed by computeLayout always matches the physical page.
+ *
+ * doc.end() is called synchronously but PDF writing is async. Callers
+ * writing to a regular file should wait for the outputStream's
+ * "finish" event; callers writing to process.stdout/stderr should
+ * instead listen for the returned document's own "end" event, since
+ * Node's stream.pipe() deliberately never calls .end() on stdout/
+ * stderr (to avoid closing the real fd), so "finish" never fires on
+ * them (see index.ts).
+ */
 function generate(params) {
     const { outputStream, mode, characters, font, fontPath, ...layoutParams } = params;
     const layout = (0, layout_1.computeLayout)(layoutParams);
     const cellsPerPage = layout.columns * layout.rows;
     const content = (0, content_1.generateContent)({ mode, characters });
     const pages = (0, paginate_1.paginateContent)(content, cellsPerPage);
-    const doc = new pdfkit_1.default({ size: "LETTER", margin: 0, autoFirstPage: false });
+    const doc = new pdfkit_1.default({
+        size: [params.pageWidth, params.pageHeight],
+        margin: 0,
+        autoFirstPage: false,
+    });
     doc.pipe(outputStream);
     (0, font_1.registerFont)(doc, font, fontPath);
     for (const page of pages) {
@@ -29,4 +47,5 @@ function generate(params) {
         }
     }
     doc.end();
+    return doc;
 }

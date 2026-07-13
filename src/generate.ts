@@ -27,11 +27,15 @@ export interface GenerateParams {
  * The PDF page size is set to [pageWidth, pageHeight] from params, so
  * the grid computed by computeLayout always matches the physical page.
  *
- * doc.end() is called synchronously but PDF writing is async; callers
- * must wait for the outputStream's "finish" event before treating the
- * file as complete (see index.ts).
+ * doc.end() is called synchronously but PDF writing is async. Callers
+ * writing to a regular file should wait for the outputStream's
+ * "finish" event; callers writing to process.stdout/stderr should
+ * instead listen for the returned document's own "end" event, since
+ * Node's stream.pipe() deliberately never calls .end() on stdout/
+ * stderr (to avoid closing the real fd), so "finish" never fires on
+ * them (see index.ts).
  */
-export function generate(params: GenerateParams): void {
+export function generate(params: GenerateParams): any {
   const { outputStream, mode, characters, font, fontPath, ...layoutParams } = params;
 
   const layout = computeLayout(layoutParams);
@@ -60,4 +64,6 @@ export function generate(params: GenerateParams): void {
   }
 
   doc.end();
+
+  return doc;
 }

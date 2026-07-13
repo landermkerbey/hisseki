@@ -27,6 +27,14 @@ describe("generateCellSequence", () => {
             { character: "永", opacity: expect.closeTo(0.3, 2) },
         ]);
     });
+    it("uses the fade start opacity for a single-cell run, without dividing by zero", () => {
+        const result = (0, sequence_1.generateCellSequence)({
+            character: "永",
+            cellsPerCharacter: 1,
+            opacity: { type: "fade", start: 0.8, end: 0.3 },
+        });
+        expect(result).toEqual([{ character: "永", opacity: 0.8 }]);
+    });
     it("generates a modelThenFixed opacity sequence", () => {
         const result = (0, sequence_1.generateCellSequence)({
             character: "永",
