@@ -28,11 +28,15 @@ Overrides (optional; take precedence over --config's values):
   --mode <mode>         "grouped" or "roundRobin"
   --font <name>         Font name
   --fontPath <path>     Path to a font file to register under --font
+  --direction <dir>     "horizontal" (default) or "vertical" (tategaki)
 
 Other flags:
   --dry-run             Validate the config and report the resulting
                         page/cell counts without writing a PDF or
                         requiring --output
+  --verbose             Print extra diagnostics: applied overrides,
+                        computed grid layout, generation time, and
+                        (for file output) the final file size
 `;
 
 /**
@@ -105,10 +109,28 @@ export function run(argv: string[], io: CliIO = defaultIo, onFinish?: () => void
     return;
   }
 
+  // Known as soon as args are parsed, so it's computed up front: every
+  // diagnostic message printed from here on (not just the final
+  // confirmation) must be routed away from stdout whenever the PDF
+  // itself is going there, or it would corrupt the binary output for a
+  // real `--output - > out.pdf` redirect.
+  const writingToStdout = args.outputPath === "-";
+  const diagnostic = (msg: string) => {
+    if (writingToStdout) {
+      io.error(msg);
+    } else {
+      io.log(msg);
+    }
+  };
+
   // CLI override flags (e.g. --cellSize 90) take precedence over the
   // config file's own values for the fields they specify; anything not
   // passed on the command line falls through to the file unchanged.
   config = { ...config, ...args.overrides };
+
+  if (args.verbose && Object.keys(args.overrides).length > 0) {
+    diagnostic(`Overrides: ${JSON.stringify(args.overrides)}`);
+  }
 
   try {
     validateConfig(config);
@@ -119,29 +141,40 @@ export function run(argv: string[], io: CliIO = defaultIo, onFinish?: () => void
     return;
   }
 
-  if (args.dryRun) {
-    // Reuses the same pure layout/content/pagination pipeline generate()
-    // uses, without ever touching PDFKit or the filesystem for output —
-    // so a dry run is cheap and side-effect free even for large configs.
-    const layout = computeLayout(config);
-    const cellsPerPage = layout.columns * layout.rows;
-    const content = generateContent({ mode: config.mode, characters: config.characters });
-    const pages = paginateContent(content, cellsPerPage);
+  // Reused by both --dry-run's summary and --verbose's layout line for
+  // a real generate run; pure and cheap even for large configs since
+  // it never touches PDFKit or the filesystem.
+  const layout = computeLayout(config);
+  const cellsPerPage = layout.columns * layout.rows;
+  const content = generateContent({ mode: config.mode, characters: config.characters });
+  const pages = paginateContent(content, cellsPerPage);
+  const layoutSummary =
+    `${pages.length} page(s), ${layout.columns}x${layout.rows} grid ` +
+    `(${cellsPerPage} cells/page), ${content.length} cell(s) total.`;
 
-    io.log(
-      `Config OK: ${pages.length} page(s), ${layout.columns}x${layout.rows} grid ` +
-        `(${cellsPerPage} cells/page), ${content.length} cell(s) total.`
-    );
+  if (args.dryRun) {
+    // --dry-run never writes PDF bytes anywhere, so its one summary
+    // line is always safe on stdout regardless of --output.
+    io.log(`Config OK: ${layoutSummary}`);
     onFinish?.();
     return;
   }
 
-  const writingToStdout = args.outputPath === "-";
+  if (args.verbose) {
+    diagnostic(`Layout: ${layoutSummary}`);
+  }
+
   const outputStream: NodeJS.WritableStream = writingToStdout
     ? io.stdout
     : fs.createWriteStream(path.resolve(args.outputPath!));
 
+  const generationStartedAt = Date.now();
+
   const reportDone = () => {
+    if (args.verbose) {
+      diagnostic(`Generated in ${Date.now() - generationStartedAt}ms`);
+    }
+
     // When piping the PDF itself to stdout, any confirmation message
     // must go to stderr instead — writing it to stdout would corrupt
     // the binary PDF data for a real `--output - > out.pdf` redirect.
@@ -149,7 +182,21 @@ export function run(argv: string[], io: CliIO = defaultIo, onFinish?: () => void
       io.error("Written to stdout");
     } else {
       io.log(`Written to ${args.outputPath}`);
+      if (args.verbose) {
+        const size = fs.statSync(path.resolve(args.outputPath!)).size;
+        diagnostic(`Output size: ${size} bytes`);
+      }
     }
+    onFinish?.();
+  };
+
+  const reportGenerateError = (err: any) => {
+    // Catches synchronous failures from PDFKit itself (e.g. doc.font()
+    // rejecting an unregistered font name, or registerFont()/PDFKit
+    // failing to read a bad fontPath) with a scoped, exit(1) message
+    // instead of letting them surface as raw uncaught exceptions.
+    io.error(`Error generating PDF: ${err.message}`);
+    io.exit(1);
     onFinish?.();
   };
 
@@ -164,7 +211,13 @@ export function run(argv: string[], io: CliIO = defaultIo, onFinish?: () => void
       onFinish?.();
     });
 
-    const doc = generate({ ...config, outputStream });
+    let doc;
+    try {
+      doc = generate({ ...config, outputStream });
+    } catch (err: any) {
+      reportGenerateError(err);
+      return;
+    }
     doc.on("end", reportDone);
   } else {
     outputStream.on("finish", reportDone);
@@ -174,7 +227,12 @@ export function run(argv: string[], io: CliIO = defaultIo, onFinish?: () => void
       onFinish?.();
     });
 
-    generate({ ...config, outputStream });
+    try {
+      generate({ ...config, outputStream });
+    } catch (err: any) {
+      reportGenerateError(err);
+      return;
+    }
   }
 }
 

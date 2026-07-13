@@ -14,6 +14,7 @@ describe("parseArgs", () => {
         outputPath: "output.pdf",
         overrides: {},
         dryRun: false,
+        verbose: false,
       });
     });
 
@@ -56,6 +57,7 @@ describe("parseArgs", () => {
         outputPath: "output.pdf",
         overrides: { cellSize: 90 },
         dryRun: false,
+        verbose: false,
       });
     });
 
@@ -73,6 +75,7 @@ describe("parseArgs", () => {
         outputPath: "output.pdf",
         overrides: { mode: "roundRobin", font: "Times-Roman" },
         dryRun: false,
+        verbose: false,
       });
     });
 
@@ -87,6 +90,7 @@ describe("parseArgs", () => {
         "--mode", "grouped",
         "--font", "Helvetica",
         "--fontPath", "/path/to/font.ttf",
+        "--direction", "vertical",
       ]);
 
       expect((result as any).overrides).toEqual({
@@ -97,7 +101,18 @@ describe("parseArgs", () => {
         mode: "grouped",
         font: "Helvetica",
         fontPath: "/path/to/font.ttf",
+        direction: "vertical",
       });
+    });
+
+    it("parses --direction as a string override on its own", () => {
+      const result = parseArgs([
+        "--config", "config.json",
+        "--output", "output.pdf",
+        "--direction", "vertical",
+      ]);
+
+      expect((result as any).overrides).toEqual({ direction: "vertical" });
     });
 
     it("omits override fields that were not passed", () => {
@@ -136,6 +151,7 @@ describe("parseArgs", () => {
         outputPath: undefined,
         overrides: {},
         dryRun: true,
+        verbose: false,
       });
     });
 
@@ -145,6 +161,29 @@ describe("parseArgs", () => {
 
     it("still requires --output when --dry-run is not passed", () => {
       expect(() => parseArgs(["--config", "config.json"])).toThrow("--output is required");
+    });
+  });
+
+  describe("--verbose", () => {
+    it("is false by default", () => {
+      const result = parseArgs(["--config", "config.json", "--output", "output.pdf"]);
+      expect((result as any).verbose).toBe(false);
+    });
+
+    it("is true when --verbose is passed", () => {
+      const result = parseArgs(["--config", "config.json", "--output", "output.pdf", "--verbose"]);
+      expect((result as any).verbose).toBe(true);
+    });
+
+    it("works together with --dry-run", () => {
+      const result = parseArgs(["--config", "config.json", "--dry-run", "--verbose"]);
+      expect((result as any).verbose).toBe(true);
+      expect((result as any).dryRun).toBe(true);
+    });
+
+    it("does not clash with -v (the --version shorthand)", () => {
+      // -v alone must still mean --version, not --verbose.
+      expect(parseArgs(["-v"])).toEqual({ command: "version" });
     });
   });
 

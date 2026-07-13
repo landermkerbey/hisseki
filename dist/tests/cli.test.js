@@ -14,6 +14,7 @@ describe("parseArgs", () => {
                 outputPath: "output.pdf",
                 overrides: {},
                 dryRun: false,
+                verbose: false,
             });
         });
         it("throws when config is missing", () => {
@@ -49,6 +50,7 @@ describe("parseArgs", () => {
                 outputPath: "output.pdf",
                 overrides: { cellSize: 90 },
                 dryRun: false,
+                verbose: false,
             });
         });
         it("parses --mode and --font as string overrides", () => {
@@ -64,6 +66,7 @@ describe("parseArgs", () => {
                 outputPath: "output.pdf",
                 overrides: { mode: "roundRobin", font: "Times-Roman" },
                 dryRun: false,
+                verbose: false,
             });
         });
         it("parses all supported override fields together", () => {
@@ -77,6 +80,7 @@ describe("parseArgs", () => {
                 "--mode", "grouped",
                 "--font", "Helvetica",
                 "--fontPath", "/path/to/font.ttf",
+                "--direction", "vertical",
             ]);
             expect(result.overrides).toEqual({
                 pageWidth: 420,
@@ -86,7 +90,16 @@ describe("parseArgs", () => {
                 mode: "grouped",
                 font: "Helvetica",
                 fontPath: "/path/to/font.ttf",
+                direction: "vertical",
             });
+        });
+        it("parses --direction as a string override on its own", () => {
+            const result = (0, cli_1.parseArgs)([
+                "--config", "config.json",
+                "--output", "output.pdf",
+                "--direction", "vertical",
+            ]);
+            expect(result.overrides).toEqual({ direction: "vertical" });
         });
         it("omits override fields that were not passed", () => {
             const result = (0, cli_1.parseArgs)(["--config", "config.json", "--output", "output.pdf"]);
@@ -118,6 +131,7 @@ describe("parseArgs", () => {
                 outputPath: undefined,
                 overrides: {},
                 dryRun: true,
+                verbose: false,
             });
         });
         it("still requires --config even with --dry-run", () => {
@@ -125,6 +139,25 @@ describe("parseArgs", () => {
         });
         it("still requires --output when --dry-run is not passed", () => {
             expect(() => (0, cli_1.parseArgs)(["--config", "config.json"])).toThrow("--output is required");
+        });
+    });
+    describe("--verbose", () => {
+        it("is false by default", () => {
+            const result = (0, cli_1.parseArgs)(["--config", "config.json", "--output", "output.pdf"]);
+            expect(result.verbose).toBe(false);
+        });
+        it("is true when --verbose is passed", () => {
+            const result = (0, cli_1.parseArgs)(["--config", "config.json", "--output", "output.pdf", "--verbose"]);
+            expect(result.verbose).toBe(true);
+        });
+        it("works together with --dry-run", () => {
+            const result = (0, cli_1.parseArgs)(["--config", "config.json", "--dry-run", "--verbose"]);
+            expect(result.verbose).toBe(true);
+            expect(result.dryRun).toBe(true);
+        });
+        it("does not clash with -v (the --version shorthand)", () => {
+            // -v alone must still mean --version, not --verbose.
+            expect((0, cli_1.parseArgs)(["-v"])).toEqual({ command: "version" });
         });
     });
     describe("--version / -v", () => {

@@ -44,6 +44,24 @@ describe("validateConfig", () => {
     );
   });
 
+  it("accepts a config with no direction field at all (defaults to horizontal downstream)", () => {
+    expect(() => validateConfig(validConfig)).not.toThrow();
+  });
+
+  it("accepts direction: \"horizontal\"", () => {
+    expect(() => validateConfig({ ...validConfig, direction: "horizontal" })).not.toThrow();
+  });
+
+  it("accepts direction: \"vertical\"", () => {
+    expect(() => validateConfig({ ...validConfig, direction: "vertical" })).not.toThrow();
+  });
+
+  it("throws when direction is present but invalid", () => {
+    expect(() => validateConfig({ ...validConfig, direction: "diagonal" })).toThrow(
+      'direction must be "horizontal" or "vertical"'
+    );
+  });
+
   it("throws when characters is empty", () => {
     expect(() => validateConfig({ ...validConfig, characters: [] })).toThrow(
       "characters must be a non-empty array"

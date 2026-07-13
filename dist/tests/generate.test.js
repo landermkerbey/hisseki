@@ -76,4 +76,53 @@ describe("generate", () => {
         });
         expect(MockPDFDocument).toHaveBeenCalledWith(expect.objectContaining({ size: [612, 792] }));
     });
+    describe("direction", () => {
+        it("draws cells in row-major, left-to-right order by default (direction omitted)", () => {
+            (0, generate_1.generate)({
+                outputStream: new stream_1.PassThrough(),
+                pageWidth: 300,
+                pageHeight: 200,
+                margin: 0,
+                cellSize: 100,
+                mode: "grouped",
+                characters: [
+                    { character: "A", cellsPerCharacter: 6, opacity: { type: "fixed", opacity: 1 } },
+                ],
+                font: "Helvetica",
+            });
+            const rectCalls = mockDocInstance.rect.mock.calls;
+            expect(rectCalls).toEqual([
+                [0, 0, 100, 100],
+                [100, 0, 100, 100],
+                [200, 0, 100, 100],
+                [0, 100, 100, 100],
+                [100, 100, 100, 100],
+                [200, 100, 100, 100],
+            ]);
+        });
+        it("draws cells in column-major, right-to-left (tategaki) order when direction is 'vertical'", () => {
+            (0, generate_1.generate)({
+                outputStream: new stream_1.PassThrough(),
+                pageWidth: 300,
+                pageHeight: 200,
+                margin: 0,
+                cellSize: 100,
+                mode: "grouped",
+                direction: "vertical",
+                characters: [
+                    { character: "A", cellsPerCharacter: 6, opacity: { type: "fixed", opacity: 1 } },
+                ],
+                font: "Helvetica",
+            });
+            const rectCalls = mockDocInstance.rect.mock.calls;
+            expect(rectCalls).toEqual([
+                [200, 0, 100, 100], // rightmost column, top
+                [200, 100, 100, 100], // rightmost column, bottom
+                [100, 0, 100, 100], // middle column, top
+                [100, 100, 100, 100], // middle column, bottom
+                [0, 0, 100, 100], // leftmost column, top
+                [0, 100, 100, 100], // leftmost column, bottom
+            ]);
+        });
+    });
 });

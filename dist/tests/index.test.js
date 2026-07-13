@@ -271,6 +271,197 @@ describe("run", () => {
             });
         });
     });
+    describe("--verbose", () => {
+        it("logs layout/timing/size details in addition to the normal confirmation, for a real generate run", () => {
+            return withTmpDir((tmpDir) => {
+                const configPath = path_1.default.join(tmpDir, "config.json");
+                const outputPath = path_1.default.join(tmpDir, "out.pdf");
+                fs_1.default.writeFileSync(configPath, JSON.stringify({
+                    pageWidth: 200,
+                    pageHeight: 200,
+                    margin: 10,
+                    cellSize: 50,
+                    mode: "grouped",
+                    font: "Helvetica",
+                    characters: [
+                        { character: "A", cellsPerCharacter: 3, opacity: { type: "fixed", opacity: 0.5 } },
+                    ],
+                }));
+                const io = makeIo();
+                return new Promise((resolve) => {
+                    (0, index_1.run)(["--config", configPath, "--output", outputPath, "--verbose"], io, () => {
+                        expect(io.error).not.toHaveBeenCalled();
+                        const logs = io.log.mock.calls.map((call) => call[0]);
+                        expect(logs.some((msg) => /Layout:.*grid/.test(msg))).toBe(true);
+                        expect(logs.some((msg) => /Generated in \d+ms/.test(msg))).toBe(true);
+                        expect(logs.some((msg) => /\d+ bytes/.test(msg))).toBe(true);
+                        expect(logs.some((msg) => msg.includes("Written to"))).toBe(true);
+                        resolve();
+                    });
+                });
+            });
+        });
+        it("logs the applied overrides when any are passed", () => {
+            return withTmpDir((tmpDir) => {
+                const configPath = path_1.default.join(tmpDir, "config.json");
+                const outputPath = path_1.default.join(tmpDir, "out.pdf");
+                fs_1.default.writeFileSync(configPath, JSON.stringify({
+                    pageWidth: 200,
+                    pageHeight: 200,
+                    margin: 10,
+                    cellSize: 20,
+                    mode: "grouped",
+                    font: "Helvetica",
+                    characters: [
+                        { character: "A", cellsPerCharacter: 1, opacity: { type: "fixed", opacity: 0.5 } },
+                    ],
+                }));
+                const io = makeIo();
+                return new Promise((resolve) => {
+                    (0, index_1.run)(["--config", configPath, "--output", outputPath, "--verbose", "--cellSize", "50"], io, () => {
+                        const logs = io.log.mock.calls.map((call) => call[0]);
+                        expect(logs.some((msg) => msg.includes("Overrides:") && msg.includes("cellSize"))).toBe(true);
+                        resolve();
+                    });
+                });
+            });
+        });
+        it("stays silent about layout/timing/size when --verbose is not passed", () => {
+            return withTmpDir((tmpDir) => {
+                const configPath = path_1.default.join(tmpDir, "config.json");
+                const outputPath = path_1.default.join(tmpDir, "out.pdf");
+                fs_1.default.writeFileSync(configPath, JSON.stringify({
+                    pageWidth: 200,
+                    pageHeight: 200,
+                    margin: 10,
+                    cellSize: 50,
+                    mode: "grouped",
+                    font: "Helvetica",
+                    characters: [
+                        { character: "A", cellsPerCharacter: 1, opacity: { type: "fixed", opacity: 0.5 } },
+                    ],
+                }));
+                const io = makeIo();
+                return new Promise((resolve) => {
+                    (0, index_1.run)(["--config", configPath, "--output", outputPath], io, () => {
+                        const logs = io.log.mock.calls.map((call) => call[0]);
+                        expect(logs).toEqual([expect.stringContaining("Written to")]);
+                        resolve();
+                    });
+                });
+            });
+        });
+        it("routes ALL diagnostics to stderr instead of stdout when writing the PDF to stdout, so they never corrupt the binary output", () => {
+            return withTmpDir((tmpDir) => {
+                const configPath = path_1.default.join(tmpDir, "config.json");
+                fs_1.default.writeFileSync(configPath, JSON.stringify({
+                    pageWidth: 200,
+                    pageHeight: 200,
+                    margin: 10,
+                    cellSize: 20,
+                    mode: "grouped",
+                    font: "Helvetica",
+                    characters: [
+                        { character: "A", cellsPerCharacter: 1, opacity: { type: "fixed", opacity: 0.5 } },
+                    ],
+                }));
+                const io = makeIo();
+                const chunks = [];
+                io.stdout.on("data", (chunk) => chunks.push(chunk));
+                return new Promise((resolve) => {
+                    (0, index_1.run)(["--config", configPath, "--output", "-", "--verbose", "--cellSize", "50"], io, () => {
+                        // Nothing but raw PDF bytes may ever reach stdout.
+                        expect(io.log).not.toHaveBeenCalled();
+                        const written = Buffer.concat(chunks);
+                        expect(written.subarray(0, 4).toString("ascii")).toBe("%PDF");
+                        // All the diagnostics that would normally go to io.log must
+                        // instead have gone to io.error (stderr).
+                        const errors = io.error.mock.calls.map((call) => call[0]);
+                        expect(errors.some((msg) => msg.includes("Overrides:"))).toBe(true);
+                        expect(errors.some((msg) => /Layout:.*grid/.test(msg))).toBe(true);
+                        expect(errors.some((msg) => /Generated in \d+ms/.test(msg))).toBe(true);
+                        expect(errors.some((msg) => msg.includes("Written to stdout"))).toBe(true);
+                        resolve();
+                    });
+                });
+            });
+        });
+        it("also enriches --dry-run's summary with overrides when both are passed", () => {
+            return withTmpDir((tmpDir) => {
+                const configPath = path_1.default.join(tmpDir, "config.json");
+                fs_1.default.writeFileSync(configPath, JSON.stringify({
+                    pageWidth: 200,
+                    pageHeight: 200,
+                    margin: 10,
+                    cellSize: 20,
+                    mode: "grouped",
+                    font: "Helvetica",
+                    characters: [
+                        { character: "A", cellsPerCharacter: 1, opacity: { type: "fixed", opacity: 0.5 } },
+                    ],
+                }));
+                const io = makeIo();
+                return new Promise((resolve) => {
+                    (0, index_1.run)(["--config", configPath, "--dry-run", "--verbose", "--cellSize", "50"], io, () => {
+                        const logs = io.log.mock.calls.map((call) => call[0]);
+                        expect(logs.some((msg) => msg.includes("Overrides:") && msg.includes("cellSize"))).toBe(true);
+                        expect(logs.some((msg) => msg.includes("Config OK"))).toBe(true);
+                        resolve();
+                    });
+                });
+            });
+        });
+    });
+    describe("PDFKit generation errors", () => {
+        it("reports a scoped error and exits(1) when generate() throws synchronously, instead of an uncaught exception (file output)", async () => {
+            await withTmpDir(async (tmpDir) => {
+                const configPath = path_1.default.join(tmpDir, "config.json");
+                const outputPath = path_1.default.join(tmpDir, "out.pdf");
+                fs_1.default.writeFileSync(configPath, JSON.stringify({
+                    pageWidth: 200,
+                    pageHeight: 200,
+                    margin: 10,
+                    cellSize: 50,
+                    mode: "grouped",
+                    font: "Helvetica",
+                    characters: [
+                        { character: "A", cellsPerCharacter: 1, opacity: { type: "fixed", opacity: 0.5 } },
+                    ],
+                }));
+                generateMock.mockImplementationOnce(() => {
+                    throw new Error("ENOENT: no such file or directory, open '/bogus/font.ttf'");
+                });
+                const io = makeIo();
+                (0, index_1.run)(["--config", configPath, "--output", outputPath], io);
+                expect(io.error).toHaveBeenCalledWith(expect.stringContaining("Error generating PDF"));
+                expect(io.error).toHaveBeenCalledWith(expect.stringContaining("bogus/font.ttf"));
+                expect(io.exit).toHaveBeenCalledWith(1);
+            });
+        });
+        it("reports the same scoped error for a synchronous generate() failure when writing to stdout", async () => {
+            await withTmpDir(async (tmpDir) => {
+                const configPath = path_1.default.join(tmpDir, "config.json");
+                fs_1.default.writeFileSync(configPath, JSON.stringify({
+                    pageWidth: 200,
+                    pageHeight: 200,
+                    margin: 10,
+                    cellSize: 50,
+                    mode: "grouped",
+                    font: "Helvetica",
+                    characters: [
+                        { character: "A", cellsPerCharacter: 1, opacity: { type: "fixed", opacity: 0.5 } },
+                    ],
+                }));
+                generateMock.mockImplementationOnce(() => {
+                    throw new Error("ENOENT: no such file or directory, open 'TotallyBogusFontName'");
+                });
+                const io = makeIo();
+                (0, index_1.run)(["--config", configPath, "--output", "-"], io);
+                expect(io.error).toHaveBeenCalledWith(expect.stringContaining("Error generating PDF"));
+                expect(io.exit).toHaveBeenCalledWith(1);
+            });
+        });
+    });
     it("leaves config file values untouched when no matching override flags are passed", () => {
         return withTmpDir((tmpDir) => {
             const configPath = path_1.default.join(tmpDir, "config.json");

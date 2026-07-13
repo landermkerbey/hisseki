@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
 import { Writable } from "stream";
-import { LayoutParams, computeLayout } from "./layout";
+import { LayoutParams, LayoutDirection, computeLayout } from "./layout";
 import { CharacterConfig } from "./sequence";
 import { LayoutMode, generateContent } from "./content";
 import { paginateContent } from "./paginate";
@@ -15,6 +15,8 @@ export interface GenerateParams {
   pageHeight: number;
   margin: number;
   cellSize: number;
+  /** Cell traversal order; defaults to "horizontal" when omitted (see LayoutDirection). */
+  direction?: LayoutDirection;
   mode: LayoutMode;
   characters: CharacterConfig[];
   font: string;

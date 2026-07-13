@@ -27,6 +27,10 @@ function validateConfig(config) {
         throw new Error("cellSize must fit at least one column and one row within the page margins");
     if (config.mode !== "grouped" && config.mode !== "roundRobin")
         throw new Error('mode must be "grouped" or "roundRobin"');
+    if (config.direction !== undefined &&
+        config.direction !== "horizontal" &&
+        config.direction !== "vertical")
+        throw new Error('direction must be "horizontal" or "vertical"');
     if (typeof config.font !== "string" || config.font.trim() === "")
         throw new Error("font must be a non-empty string");
     if (!Array.isArray(config.characters) || config.characters.length === 0)

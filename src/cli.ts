@@ -25,6 +25,7 @@ export interface ConfigOverrides {
   mode?: string;
   font?: string;
   fontPath?: string;
+  direction?: string;
 }
 
 const OVERRIDE_KEYS: (keyof ConfigOverrides)[] = [
@@ -35,6 +36,7 @@ const OVERRIDE_KEYS: (keyof ConfigOverrides)[] = [
   "mode",
   "font",
   "fontPath",
+  "direction",
 ];
 
 /**
@@ -48,6 +50,7 @@ export interface GenerateArgs {
   outputPath?: string;
   overrides: ConfigOverrides;
   dryRun: boolean;
+  verbose: boolean;
 }
 
 export type ParsedArgs = HelpArgs | VersionArgs | GenerateArgs;
@@ -75,6 +78,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
   if (args.version || args.v) return { command: "version" };
 
   const dryRun = Boolean(args["dry-run"] || args.dryRun);
+  // Deliberately no `-V`/short form: `-v` is already taken by --version,
+  // and overloading it would make `-v` ambiguous between the two.
+  const verbose = Boolean(args.verbose);
 
   if (!args.config) throw new Error("--config is required");
   if (!dryRun && !args.output) throw new Error("--output is required");
@@ -92,5 +98,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
     outputPath: args.output,
     overrides,
     dryRun,
+    verbose,
   };
 }

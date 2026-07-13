@@ -67,12 +67,30 @@ npm test
 
 * Configuration reference
 
-Hisseki takes exactly two CLI flags, both required:
+** CLI flags
 
-| Flag        | Meaning                                  |
-|-------------+-------------------------------------------|
-| =--config=  | Path to a JSON config file (see below)   |
-| =--output=  | Path to write the generated PDF to       |
+| Flag                | Meaning                                                                      |
+|----------------------+-------------------------------------------------------------------------------|
+| =--config <path>=    | Path to a JSON config file (required)                                        |
+| =--output <path>=    | Path to write the generated PDF to (required unless =--dry-run= is passed)  |
+| =--output -=         | Write the PDF to stdout instead of a file (see Workflow 5b)                  |
+| =-h=, =--help=       | Print usage/help text and exit                                               |
+| =-v=, =--version=    | Print the installed version and exit                                         |
+| =--dry-run=          | Validate the config and print a page/grid/cell summary; no PDF is written    |
+| =--verbose=          | Print extra diagnostics: applied overrides, grid layout, generation time, and (for file output) the final file size |
+| =--pageWidth <n>=    | Override the config's =pageWidth=                                            |
+| =--pageHeight <n>=   | Override the config's =pageHeight=                                           |
+| =--margin <n>=       | Override the config's =margin=                                               |
+| =--cellSize <n>=     | Override the config's =cellSize=                                             |
+| =--mode <mode>=      | Override the config's =mode=                                                 |
+| =--font <name>=      | Override the config's =font=                                                  |
+| =--fontPath <path>=  | Override the config's =fontPath=                                             |
+| =--direction <dir>=  | Override the config's =direction= (="horizontal"= or ="vertical"=)          |
+
+Override flags take precedence over whatever =--config='s file
+specifies for that field; anything not passed on the command line
+still comes from the file. The =characters= array has no CLI
+representation and must always come from the config file.
 
 The config file is a single JSON object:
 
@@ -85,6 +103,7 @@ The config file is a single JSON object:
   "mode": "grouped",
   "font": "Helvetica",
   "fontPath": "/optional/path/to/font.ttf",
+  "direction": "horizontal",
   "characters": [
     {
       "character": "永",
@@ -103,6 +122,7 @@ The config file is a single JSON object:
 | =mode=                       | =grouped= (all of character A's cells, then all of B's) or =roundRobin= (A, B, A, B, ...). |
 | =font=                       | Font name passed to PDFKit. Must be one of the 14 standard names, or a name you're registering via =fontPath=. |
 | =fontPath=                   | Optional. Path to a font file to register under the =font= name.            |
+| =direction=                   | Optional. ="horizontal"= (default) or ="vertical"=. Controls cell *fill order* only — column-major, right-to-left, top-to-bottom for ="vertical"= (tategaki); the grid's physical geometry is unchanged either way. See Workflow 7. |
 | =characters=                 | Array of character drills; see below.                                       |
 
 Each entry in =characters=:
@@ -330,6 +350,48 @@ Every save to =drill.json= regenerates =drill.pdf=; keep a PDF viewer
 that auto-reloads open alongside it for a fast feedback loop while
 tuning fade curves or grid density.
 
+** Workflow 7: Traditional vertical (tategaki) practice sheets
+
+Set ="direction": "vertical"= (or pass =--direction vertical=) to fill
+cells in the traditional Japanese/Chinese order — top-to-bottom within
+a column, columns right-to-left — instead of the default left-to-right
+row order:
+
+#+begin_src bash
+cat > vertical-drill.json <<'EOF'
+{
+  "pageWidth": 612,
+  "pageHeight": 792,
+  "margin": 72,
+  "cellSize": 72,
+  "mode": "grouped",
+  "direction": "vertical",
+  "font": "PracticeFont",
+  "fontPath": "/path/to/ShipporiMincho-Regular.ttf",
+  "characters": [
+    {
+      "character": "永",
+      "cellsPerCharacter": 20,
+      "opacity": { "type": "fade", "start": 0.85, "end": 0.2 }
+    }
+  ]
+}
+EOF
+hisseki --config vertical-drill.json --output vertical-drill.pdf
+#+end_src
+
+Or add =--direction vertical= to any existing horizontal config
+without editing it:
+
+#+begin_src bash
+hisseki --config drill.json --output drill-vertical.pdf --direction vertical
+#+end_src
+
+Only the cell *fill order* changes — page size, grid dimensions,
+margins, and cell size are identical to the equivalent horizontal
+config; =--dry-run= reports the same page/grid/cell counts regardless
+of =direction=.
+
 * Missing features & enhancements
 
 This section documents gaps and rough edges found while reading the
@@ -395,19 +457,45 @@ source, in rough order of impact. It doubles as a project roadmap.
   and =tests/index.test.ts= (including a regression test using a
   stream that never fires ="finish"=, to catch this exact bug class).
 
-- No verbose/debug logging for large multi-page jobs (page count,
-  cells per page, timing) outside of what =--dry-run= now reports.
-- Errors from PDFKit itself (e.g. an unregistered font name passed to
-  =doc.font()=, or a missing =fontPath= file) are not caught anywhere
-  in =generate()= or =index.ts=; they surface as raw uncaught
-  exceptions/stack traces rather than the clean, scoped error messages
-  the rest of =index.ts= uses.
+- [DONE] ~~No verbose/debug logging for large multi-page jobs.~~
+  =--verbose= prints the applied overrides (if any), the computed grid
+  layout (reusing the same pure pipeline =--dry-run= uses), generation
+  time in milliseconds, and — for file output — the final file size in
+  bytes. Getting this right for =--output -= required real care, not
+  just plumbing: an early version of this feature printed diagnostics
+  via the normal log channel even when the PDF itself was being
+  written to stdout, corrupting the binary output the moment
+  =--verbose= was combined with =--output -=. All generate-command
+  diagnostics (not just the final confirmation) are now routed through
+  a single stdout-aware helper that sends them to stderr whenever
+  =--output -= is in effect. Covered by =tests/index.test.ts=,
+  including a regression test asserting =io.log= is never called at
+  all when writing to stdout with =--verbose= on.
+
+- [DONE] ~~Errors from PDFKit itself are not caught.~~ Both
+  =generate()= call sites in =index.ts= (file and stdout output) are
+  now wrapped in try/catch, reporting synchronous PDFKit failures
+  (e.g. an unregistered font name, or a =fontPath= that doesn't exist)
+  as a scoped ="Error generating PDF: ..."= message with exit code 1,
+  instead of an uncaught exception and stack trace. Covered by
+  =tests/index.test.ts=; also manually verified against real PDFKit
+  failures (bogus font name, nonexistent =fontPath=) to confirm the
+  exact error text this catches.
 
 ** Feature gaps relative to a "finished" handwriting-practice tool
 
-- *No vertical (tategaki) layout.* Japanese and traditional Chinese
-  writing is often practiced top-to-bottom, right-to-left; hisseki
-  only lays out left-to-right, top-to-bottom rows.
+- [DONE] ~~No vertical (tategaki) layout.~~ An optional =direction=
+  config field (="horizontal"= (default) or ="vertical"=), overridable
+  via =--direction=, controls the order cells are *filled* in —
+  column-major, right-to-left, top-to-bottom within each column for
+  ="vertical"=, matching traditional Japanese/Chinese writing order.
+  The grid's physical geometry (column/row counts, cell positions,
+  page size) is identical either way; only which content cell lands in
+  which square changes. Implemented entirely in =computeLayout=
+  (=src/layout.ts=), so it applies uniformly regardless of =mode=
+  (=grouped=/=roundRobin=), opacity curve, or page count. Covered by
+  =tests/layout.test.ts=, =tests/validate.test.ts=, =tests/generate.test.ts=,
+  and =tests/cli.test.ts=.
 - *No stroke-order guidance* (numbered stroke overlays or animated
   stroke-order fonts), which is standard in kanji/hanzi workbooks.
 - *No vertical centering of the grid.* =computeLayout= centers columns

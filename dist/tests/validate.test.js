@@ -33,6 +33,18 @@ describe("validateConfig", () => {
     it("throws when mode is invalid", () => {
         expect(() => (0, validate_1.validateConfig)({ ...validConfig, mode: "spiral" })).toThrow('mode must be "grouped" or "roundRobin"');
     });
+    it("accepts a config with no direction field at all (defaults to horizontal downstream)", () => {
+        expect(() => (0, validate_1.validateConfig)(validConfig)).not.toThrow();
+    });
+    it("accepts direction: \"horizontal\"", () => {
+        expect(() => (0, validate_1.validateConfig)({ ...validConfig, direction: "horizontal" })).not.toThrow();
+    });
+    it("accepts direction: \"vertical\"", () => {
+        expect(() => (0, validate_1.validateConfig)({ ...validConfig, direction: "vertical" })).not.toThrow();
+    });
+    it("throws when direction is present but invalid", () => {
+        expect(() => (0, validate_1.validateConfig)({ ...validConfig, direction: "diagonal" })).toThrow('direction must be "horizontal" or "vertical"');
+    });
     it("throws when characters is empty", () => {
         expect(() => (0, validate_1.validateConfig)({ ...validConfig, characters: [] })).toThrow("characters must be a non-empty array");
     });

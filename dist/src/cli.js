@@ -13,6 +13,7 @@ const OVERRIDE_KEYS = [
     "mode",
     "font",
     "fontPath",
+    "direction",
 ];
 /**
  * Parses argv into one of three commands:
@@ -37,6 +38,9 @@ function parseArgs(argv) {
     if (args.version || args.v)
         return { command: "version" };
     const dryRun = Boolean(args["dry-run"] || args.dryRun);
+    // Deliberately no `-V`/short form: `-v` is already taken by --version,
+    // and overloading it would make `-v` ambiguous between the two.
+    const verbose = Boolean(args.verbose);
     if (!args.config)
         throw new Error("--config is required");
     if (!dryRun && !args.output)
@@ -53,5 +57,6 @@ function parseArgs(argv) {
         outputPath: args.output,
         overrides,
         dryRun,
+        verbose,
     };
 }

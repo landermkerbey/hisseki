@@ -31,6 +31,13 @@ export function validateConfig(config: any): void {
   if (config.mode !== "grouped" && config.mode !== "roundRobin")
     throw new Error('mode must be "grouped" or "roundRobin"');
 
+  if (
+    config.direction !== undefined &&
+    config.direction !== "horizontal" &&
+    config.direction !== "vertical"
+  )
+    throw new Error('direction must be "horizontal" or "vertical"');
+
   if (typeof config.font !== "string" || config.font.trim() === "")
     throw new Error("font must be a non-empty string");
 
